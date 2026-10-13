@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from google import genai
@@ -66,9 +67,23 @@ Transcrição da Reunião para analisar:
         )
         doc_content = response.text or ""
 
-        # Salva automaticamente no diretório padrão: [YYYY-MM-DD]-[HH-MM-SS].md
+        # Extrai o título gerado da documentação
+        title_match = re.search(r"^#\s*Reunião:\s*\[?(.*?)\]?$", doc_content, re.MULTILINE | re.IGNORECASE)
+        if not title_match:
+            title_match = re.search(r"^#\s*(.+)$", doc_content, re.MULTILINE)
+
+        raw_title = title_match.group(1).strip() if title_match else meeting_title
+        # Remove colchetes residuais e caracteres inválidos para nomes de arquivos no Windows
+        raw_title = re.sub(r"[\[\]]", "", raw_title).strip()
+        sanitized_title = re.sub(r'[\\/*?:"<>|]', '', raw_title).strip()
+        sanitized_title = re.sub(r"\s+", "-", sanitized_title)
+        if not sanitized_title:
+            sanitized_title = "Reuniao"
+        sanitized_title = sanitized_title[:60].rstrip("-")
+
+        # Salva no diretório padrão: [DATA]-[HORA]-[TITULO].md
         file_timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        file_name = f"{file_timestamp}.md"
+        file_name = f"{file_timestamp}-{sanitized_title}.md"
         output_path = Path(settings.output_dir) / file_name
 
         try:

@@ -95,7 +95,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
             />
             <p className="text-[11px] text-slate-500 mt-1">
-              Os arquivos são salvos como [ANO-MÊS-DIA]-[HORA-MINUTO-SEGUNDO].md.
+              Os arquivos são salvos como [DATA]-[HORA]-[TITULO].md.
             </p>
           </div>
 

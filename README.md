@@ -25,7 +25,7 @@ npm run electron
 
 ## 📂 Diretório Padrão de Salvamento
 As atas de reuniões em formato Markdown (.md) são salvas automaticamente em:
-`C:\Users\pedri\OneDrive\Documentos\transcriptions\[YYYY-MM-DD]-[HH-MM-SS].md`
+`C:\Users\pedri\OneDrive\Documentos\transcriptions\[YYYY-MM-DD]-[HH-MM-SS]-[TITULO].md`
 
 ## ⚙️ Configuração da Chave Gemini
 Configure no arquivo `.env` ou direto pela interface do aplicativo no ícone de engrenagem:
