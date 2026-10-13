@@ -5,6 +5,10 @@ from pathlib import Path
 import numpy as np
 import soundcard as sc
 import soundfile as sf
+import warnings
+
+# Suprime aviso inofensivo de descontinuidade de dados/silêncio do Windows
+warnings.filterwarnings("ignore", category=sc.SoundcardRuntimeWarning)
 
 class AudioRecorder:
     def __init__(self, sample_rate: int = 16000):
