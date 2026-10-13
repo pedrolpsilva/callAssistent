@@ -12,7 +12,7 @@ DEFAULT_OUTPUT_DIR = r"C:\Users\pedri\OneDrive\Documentos\transcriptions"
 class Settings:
     def __init__(self):
         self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
         self.output_dir: str = os.getenv("OUTPUT_DIR", DEFAULT_OUTPUT_DIR)
         self.port: int = int(os.getenv("PORT", "8765"))
         self.default_user_name: str = "Pedro Luiz"
