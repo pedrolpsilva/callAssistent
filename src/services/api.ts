@@ -50,6 +50,15 @@ export async function stopRecording(): Promise<StopResult> {
   return res.json();
 }
 
+export async function retryRecording(): Promise<StopResult> {
+  const res = await fetch(`${API_BASE}/record/retry`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Falha ao reprocessar gravação');
+  }
+  return res.json();
+}
+
 export async function generateDocs(
   transcriptText: string,
   meetingTitle: string,

@@ -98,8 +98,11 @@ def stop_record():
         raise HTTPException(status_code=400, detail=rec_result.get("error", "Erro ao parar gravação."))
 
     last_session["temp_wav"] = str(temp_wav)
+    last_session["user_timeline"] = rec_result.get("user_timeline")
+    last_session["duration"] = rec_result.get("duration", 0)
+    last_session["window_events"] = window_events
     
-    # 1. Transcreve com Gemini
+    # 1. Transcreve com Gemini (com retry automático e fallback de modelo)
     transcribe_result = gemini_transcribe_service.transcribe_audio(
         wav_path=str(temp_wav),
         user_name=last_session["user_name"],
@@ -108,7 +111,10 @@ def stop_record():
     )
 
     if not transcribe_result.get("success"):
-        raise HTTPException(status_code=500, detail=transcribe_result.get("error"))
+        raise HTTPException(
+            status_code=503,
+            detail=transcribe_result.get("error", "Servidor do Gemini em alta demanda. Você pode tentar novamente com o botão Retentar.")
+        )
 
     raw_text = transcribe_result.get("raw_text", "")
     speakers = transcribe_result.get("speakers", [])
@@ -121,6 +127,12 @@ def stop_record():
         participants=all_participants
     )
 
+    if not doc_result.get("success"):
+        raise HTTPException(
+            status_code=503,
+            detail=doc_result.get("error", "Erro ao gerar documentação com o Gemini.")
+        )
+
     return {
         "success": True,
         "duration": rec_result.get("duration", 0),
@@ -131,6 +143,47 @@ def stop_record():
         "file_path": doc_result.get("file_path", ""),
         "file_name": doc_result.get("file_name", ""),
         "window_events": window_events
+    }
+
+@app.post("/api/record/retry")
+def retry_last_recording():
+    temp_wav = last_session.get("temp_wav")
+    if not temp_wav or not Path(temp_wav).exists():
+        raise HTTPException(status_code=400, detail="Nenhum áudio gravado recentemente encontrado para reprocessar.")
+
+    transcribe_result = gemini_transcribe_service.transcribe_audio(
+        wav_path=temp_wav,
+        user_name=last_session.get("user_name", "Pedro Luiz"),
+        known_speakers=last_session.get("known_speakers", []),
+        user_timeline=last_session.get("user_timeline")
+    )
+
+    if not transcribe_result.get("success"):
+        raise HTTPException(
+            status_code=503,
+            detail=transcribe_result.get("error", "Servidores do Gemini ainda estão sobrecarregados. Aguarde alguns segundos.")
+        )
+
+    raw_text = transcribe_result.get("raw_text", "")
+    speakers = transcribe_result.get("speakers", [])
+    all_participants = list(set([last_session.get("user_name", "Pedro Luiz")] + speakers))
+
+    doc_result = gemini_summarizer_service.generate_documentation(
+        transcript_text=raw_text,
+        meeting_title="Reunião de Alinhamento e Produto",
+        participants=all_participants
+    )
+
+    return {
+        "success": True,
+        "duration": last_session.get("duration", 0),
+        "transcript_raw": raw_text,
+        "segments": transcribe_result.get("segments", []),
+        "speakers": speakers,
+        "document_markdown": doc_result.get("document_markdown", ""),
+        "file_path": doc_result.get("file_path", ""),
+        "file_name": doc_result.get("file_name", ""),
+        "window_events": last_session.get("window_events", [])
     }
 
 @app.post("/api/generate-docs")

@@ -1,8 +1,10 @@
 import os
 import re
+import time
 from pathlib import Path
 from google import genai
 from google.genai import types
+from google.genai.errors import ServerError, APIError
 from app.core.config import settings
 
 class GeminiTranscribeService:
@@ -46,12 +48,43 @@ Roberto: Perfeito, vou assumir a parte de backend.
 Se não souber o nome exato de um participante externo, use 'Participante 1', 'Participante 2', etc.
 Transcreva fielmente todas as palavras ditas no áudio."""
 
+        raw_text = ""
+        fallback_models = [settings.gemini_model, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+        models_to_try = []
+        for m in fallback_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
         try:
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=[audio_file, prompt],
-            )
-            raw_text = response.text or ""
+            success = False
+            last_err_msg = ""
+            for model_name in models_to_try:
+                for attempt in range(2):
+                    try:
+                        print(f"[Gemini Transcribe] Tentando modelo {model_name} (tentativa {attempt + 1}/2)...")
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=[audio_file, prompt],
+                        )
+                        raw_text = response.text or ""
+                        success = True
+                        break
+                    except Exception as e:
+                        last_err_msg = str(e)
+                        is_503 = "503" in last_err_msg or "UNAVAILABLE" in last_err_msg
+                        print(f"[Gemini Transcribe] Erro com {model_name}: {last_err_msg[:100]}")
+                        if is_503 and attempt == 0:
+                            time.sleep(2.0)
+                            continue
+                        break
+                if success:
+                    break
+
+            if not success:
+                return {
+                    "success": False,
+                    "error": f"Servidores do Google temporariamente ocupados (503). Tente novamente em instantes. Detalhes: {last_err_msg[:120]}"
+                }
         finally:
             # Limpa o arquivo da nuvem após o processamento
             try:

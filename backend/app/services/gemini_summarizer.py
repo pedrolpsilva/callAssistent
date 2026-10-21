@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from google import genai
@@ -61,11 +62,42 @@ Transcrição da Reunião para analisar:
 \"\"\"
 """
 
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-        )
-        doc_content = response.text or ""
+        fallback_models = [settings.gemini_model, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+        models_to_try = []
+        for m in fallback_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
+        doc_content = ""
+        success = False
+        last_err_msg = ""
+        for model_name in models_to_try:
+            for attempt in range(2):
+                try:
+                    print(f"[Gemini Summarizer] Tentando modelo {model_name} (tentativa {attempt + 1}/2)...")
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    doc_content = response.text or ""
+                    success = True
+                    break
+                except Exception as e:
+                    last_err_msg = str(e)
+                    is_503 = "503" in last_err_msg or "UNAVAILABLE" in last_err_msg
+                    print(f"[Gemini Summarizer] Erro com {model_name}: {last_err_msg[:100]}")
+                    if is_503 and attempt == 0:
+                        time.sleep(2.0)
+                        continue
+                    break
+            if success:
+                break
+
+        if not success:
+            return {
+                "success": False,
+                "error": f"Servidores do Google temporariamente ocupados (503). Detalhes: {last_err_msg[:120]}"
+            }
 
         # Extrai o título gerado da documentação
         title_match = re.search(r"^#\s*Reunião:\s*\[?(.*?)\]?$", doc_content, re.MULTILINE | re.IGNORECASE)

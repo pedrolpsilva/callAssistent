@@ -13,10 +13,11 @@ import {
   pauseRecording,
   resumeRecording,
   stopRecording,
+  retryRecording,
   generateDocs,
   openFolder,
 } from './services/api';
-import { MessageSquare, FileText, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -30,6 +31,7 @@ export const App: React.FC = () => {
   const [filePath, setFilePath] = useState('');
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [canRetry, setCanRetry] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'transcript' | 'docs'>('transcript');
   const [notification, setNotification] = useState<string | null>(null);
@@ -103,6 +105,7 @@ export const App: React.FC = () => {
 
   const handleStop = async () => {
     setIsProcessing(true);
+    setCanRetry(false);
     try {
       const result: StopResult = await stopRecording();
       setRawText(result.transcript_raw);
@@ -114,6 +117,28 @@ export const App: React.FC = () => {
       await loadStatus();
       setActiveTab('docs');
       showNotification(`Ata salva com sucesso em: ${result.file_name}`);
+    } catch (err: any) {
+      setCanRetry(true);
+      alert(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsProcessing(true);
+    try {
+      const result: StopResult = await retryRecording();
+      setRawText(result.transcript_raw);
+      setSegments(result.segments);
+      setSpeakers(result.speakers);
+      setMarkdown(result.document_markdown);
+      setFilePath(result.file_path);
+      setFileName(result.file_name);
+      setCanRetry(false);
+      await loadStatus();
+      setActiveTab('docs');
+      showNotification(`Ata reprocessada com sucesso: ${result.file_name}`);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -185,6 +210,20 @@ export const App: React.FC = () => {
         onStop={handleStop}
         isProcessing={isProcessing}
       />
+
+      {/* Banner de Retentativa quando houver instabilidade no Gemini */}
+      {canRetry && !isProcessing && (
+        <div className="bg-amber-950/80 border-b border-amber-500/40 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-200">
+          <span>O áudio da reunião está seguro no PC. O Gemini passou por instabilidade temporária. Clique para processar agora:</span>
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-semibold transition-colors cursor-pointer shadow-md shadow-amber-900/30"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Tentar Novamente</span>
+          </button>
+        </div>
+      )}
 
       {/* Notificação Flutuante Toast */}
       {notification && (
