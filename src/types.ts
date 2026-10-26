@@ -6,6 +6,7 @@ export interface SystemStatus {
   has_api_key: boolean;
   model: string;
   default_user_name: string;
+  platform?: string;
 }
 
 export interface TranscriptSegment {

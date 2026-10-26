@@ -1,13 +1,15 @@
 {
   "name": "callassistent",
   "version": "1.0.0",
-  "description": "Aplicativo Windows para gravação, transcrição com IA e atas de reunião",
-  "main": "electron/main.cjs",
+  "description": "Aplicativo Web para gravação, transcrição com IA e atas de reunião (Google Chrome no macOS e Windows)",
   "scripts": {
-    "backend": ".\\venv\\Scripts\\python.exe backend/run_backend.py",
-    "dev:ui": "vite",
-    "electron": "electron electron/main.cjs",
-    "dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND,APP\" -c \"yellow,blue,green\" \"npm run backend\" \"npm run dev:ui\" \"wait-on tcp:8765 && wait-on http://localhost:5173 && npm run electron\""
+    "backend": "python backend/run_backend.py",
+    "backend:win": ".\\venv\\Scripts\\python.exe backend/run_backend.py",
+    "dev:ui": "vite --open",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,WEB\" -c \"yellow,cyan\" \"npm run backend:win\" \"npm run dev:ui\"",
+    "dev:mac": "concurrently -k -p \"[{name}]\" -n \"BACKEND,WEB\" -c \"yellow,cyan\" \"python3 backend/run_backend.py\" \"npm run dev:ui\"",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -22,11 +24,9 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
-    "electron": "^34.2.0",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^6.1.0",
-    "wait-on": "^8.0.2"
+    "vite": "^6.1.0"
   }
 }

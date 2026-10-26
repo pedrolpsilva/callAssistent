@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Check, ExternalLink, Folder, Sparkles } from 'lucide-react';
+import { FileText, Copy, Check, ExternalLink, Folder, Sparkles, Download } from 'lucide-react';
 import { openFolder, openFile } from '../services/api';
 
 interface DocPreviewProps {
@@ -15,6 +15,19 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ markdown, filePath, file
     navigator.clipboard.writeText(markdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    if (!markdown) return;
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName || 'Ata-Reuniao.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleOpenFile = async () => {
@@ -65,6 +78,15 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ markdown, filePath, file
               <span>Abrir no Editor</span>
             </button>
           )}
+
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-medium border border-emerald-500/30 transition-colors cursor-pointer"
+            title="Baixar arquivo Markdown diretamente no navegador"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Baixar .md</span>
+          </button>
 
           <button
             onClick={handleOpenFolder}

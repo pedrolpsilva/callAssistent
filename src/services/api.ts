@@ -59,6 +59,33 @@ export async function retryRecording(): Promise<StopResult> {
   return res.json();
 }
 
+export async function uploadAudioAndProcess(
+  audioBlob: Blob,
+  metadata: {
+    userName?: string;
+    knownSpeakers?: string[];
+    meetingTitle?: string;
+  }
+): Promise<StopResult> {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.webm');
+  formData.append('user_name', metadata.userName || 'Pedro Luiz');
+  formData.append('known_speakers', JSON.stringify(metadata.knownSpeakers || []));
+  formData.append('meeting_title', metadata.meetingTitle || 'Reunião de Alinhamento');
+
+  const res = await fetch(`${API_BASE}/record/upload-audio`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Falha ao processar áudio com Gemini');
+  }
+
+  return res.json();
+}
+
 export async function generateDocs(
   transcriptText: string,
   meetingTitle: string,

@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,7 +8,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 ENV_PATH = BASE_DIR / ".env"
 load_dotenv(ENV_PATH)
 
-DEFAULT_OUTPUT_DIR = r"C:\Users\pedri\OneDrive\Documentos\transcriptions"
+def get_default_output_dir() -> str:
+    env_dir = os.getenv("OUTPUT_DIR")
+    if env_dir:
+        return env_dir
+    if sys.platform == "darwin":
+        return str(Path.home() / "Documents" / "transcriptions")
+    
+    # Windows: Tenta OneDrive ou pasta Documentos padrão
+    onedrive_dir = Path.home() / "OneDrive" / "Documentos" / "transcriptions"
+    if onedrive_dir.parent.exists():
+        return str(onedrive_dir)
+    return str(Path.home() / "Documents" / "transcriptions")
+
+DEFAULT_OUTPUT_DIR = get_default_output_dir()
 
 class Settings:
     def __init__(self):
@@ -16,6 +30,7 @@ class Settings:
         self.output_dir: str = os.getenv("OUTPUT_DIR", DEFAULT_OUTPUT_DIR)
         self.port: int = int(os.getenv("PORT", "8765"))
         self.default_user_name: str = "Pedro Luiz"
+        self.platform: str = sys.platform
         self._ensure_output_dir()
 
     def _ensure_output_dir(self):

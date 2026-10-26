@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Settings, Folder, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mic, Settings, Folder, CheckCircle2, AlertCircle, Monitor } from 'lucide-react';
 import { SystemStatus } from '../types';
 
 interface HeaderProps {
@@ -9,6 +9,9 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ status, onOpenSettings, onOpenFolder }) => {
+  const isMac = status?.platform === 'darwin' || (typeof navigator !== 'undefined' && /mac/i.test(navigator.userAgent));
+  const osLabel = isMac ? 'macOS' : 'Windows';
+
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800">
       <div className="flex items-center gap-3">
@@ -19,10 +22,14 @@ export const Header: React.FC<HeaderProps> = ({ status, onOpenSettings, onOpenFo
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold tracking-tight text-white">CallAssistent</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-medium">
-              Google Gemini
+              Web · Google Gemini
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+              <Monitor className="w-3 h-3 text-cyan-400" />
+              <span>{osLabel} · Chrome</span>
             </span>
           </div>
-          <p className="text-xs text-slate-400">Transcrição de Reuniões & Atas de Engenharia</p>
+          <p className="text-xs text-slate-400">Transcrição de Reuniões & Atas de Produto em Tempo Real</p>
         </div>
       </div>
 
@@ -45,11 +52,11 @@ export const Header: React.FC<HeaderProps> = ({ status, onOpenSettings, onOpenFo
         {/* Botão de abrir pasta de transcrições */}
         <button
           onClick={onOpenFolder}
-          title="Abrir pasta de transcrições no Windows"
+          title={`Abrir pasta de transcrições no ${osLabel}`}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors text-xs font-medium cursor-pointer"
         >
           <Folder className="w-4 h-4 text-amber-400" />
-          <span className="hidden md:inline">Transcrições</span>
+          <span className="hidden md:inline">Pasta Local</span>
         </button>
 
         {/* Botão de Configurações */}

@@ -8,21 +8,22 @@ import { SettingsModal } from './components/SettingsModal';
 import { SystemStatus, TranscriptSegment, StopResult } from './types';
 import {
   fetchStatus,
-  fetchWindows,
-  startRecording,
-  pauseRecording,
-  resumeRecording,
-  stopRecording,
+  uploadAudioAndProcess,
   retryRecording,
   generateDocs,
   openFolder,
 } from './services/api';
+import { webAudioRecorder } from './services/webAudioRecorder';
 import { MessageSquare, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
-  const [windows, setWindows] = useState<string[]>([]);
-  const [selectedWindow, setSelectedWindow] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [hasTabAudio, setHasTabAudio] = useState(false);
+  const [lastBlob, setLastBlob] = useState<Blob | null>(null);
+
   const [knownSpeakers, setKnownSpeakers] = useState<string[]>([]);
   const [speakers, setSpeakers] = useState<string[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -38,7 +39,7 @@ export const App: React.FC = () => {
 
   const showNotification = (msg: string) => {
     setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 4500);
   };
 
   const loadStatus = async () => {
@@ -50,64 +51,70 @@ export const App: React.FC = () => {
     }
   };
 
-  const loadWindows = async () => {
-    try {
-      const list = await fetchWindows();
-      setWindows(list);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   useEffect(() => {
     loadStatus();
-    loadWindows();
   }, []);
 
-  // Polling de status durante gravação
+  // Cronômetro local da gravação web
   useEffect(() => {
-    const interval = setInterval(
-      () => {
-        loadStatus();
-      },
-      status?.is_recording ? 1000 : 4000
-    );
-    return () => clearInterval(interval);
-  }, [status?.is_recording]);
+    let timer: NodeJS.Timeout | undefined;
+    if (isRecording && !isPaused) {
+      timer = setInterval(() => {
+        setDuration((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isRecording, isPaused]);
 
   const handleStart = async () => {
     try {
-      await startRecording(selectedWindow, knownSpeakers);
-      await loadStatus();
-      showNotification('Gravação iniciada.');
+      const result = await webAudioRecorder.start(() => {
+        showNotification('Compartilhamento da guia/tela encerrado no Chrome.');
+      });
+      setIsRecording(true);
+      setIsPaused(false);
+      setDuration(0);
+      setHasTabAudio(result.hasTabAudio);
+
+      if (!result.hasTabAudio) {
+        showNotification('Atenção: A opção "Compartilhar áudio" não foi marcada no Chrome. Apenas seu microfone será gravado.');
+      } else {
+        showNotification('Gravação iniciada: Microfone + Áudio da Guia conectados!');
+      }
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'Erro ao iniciar gravação.');
     }
   };
 
-  const handlePause = async () => {
-    try {
-      await pauseRecording();
-      await loadStatus();
-    } catch (err: any) {
-      alert(err.message);
-    }
+  const handlePause = () => {
+    webAudioRecorder.pause();
+    setIsPaused(true);
   };
 
-  const handleResume = async () => {
-    try {
-      await resumeRecording();
-      await loadStatus();
-    } catch (err: any) {
-      alert(err.message);
-    }
+  const handleResume = () => {
+    webAudioRecorder.resume();
+    setIsPaused(false);
   };
 
   const handleStop = async () => {
     setIsProcessing(true);
     setCanRetry(false);
     try {
-      const result: StopResult = await stopRecording();
+      const blob = await webAudioRecorder.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      setLastBlob(blob);
+
+      showNotification('Enviando áudio para processamento com Gemini...');
+
+      const result: StopResult = await uploadAudioAndProcess(blob, {
+        userName: 'Pedro Luiz',
+        knownSpeakers,
+        meetingTitle: 'Reunião de Produto e Desenvolvimento',
+      });
+
       setRawText(result.transcript_raw);
       setSegments(result.segments);
       setSpeakers(result.speakers);
@@ -116,10 +123,10 @@ export const App: React.FC = () => {
       setFileName(result.file_name);
       await loadStatus();
       setActiveTab('docs');
-      showNotification(`Ata salva com sucesso em: ${result.file_name}`);
+      showNotification(`Ata processada e salva com sucesso: ${result.file_name}`);
     } catch (err: any) {
       setCanRetry(true);
-      alert(err.message);
+      alert(err.message || 'Erro ao processar gravação');
     } finally {
       setIsProcessing(false);
     }
@@ -128,7 +135,17 @@ export const App: React.FC = () => {
   const handleRetry = async () => {
     setIsProcessing(true);
     try {
-      const result: StopResult = await retryRecording();
+      let result: StopResult;
+      if (lastBlob) {
+        result = await uploadAudioAndProcess(lastBlob, {
+          userName: 'Pedro Luiz',
+          knownSpeakers,
+          meetingTitle: 'Reunião de Produto e Desenvolvimento',
+        });
+      } else {
+        result = await retryRecording();
+      }
+
       setRawText(result.transcript_raw);
       setSegments(result.segments);
       setSpeakers(result.speakers);
@@ -140,7 +157,7 @@ export const App: React.FC = () => {
       setActiveTab('docs');
       showNotification(`Ata reprocessada com sucesso: ${result.file_name}`);
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'Erro ao retentar processamento');
     } finally {
       setIsProcessing(false);
     }
@@ -153,17 +170,14 @@ export const App: React.FC = () => {
   };
 
   const handleRenameSpeaker = (oldName: string, newName: string) => {
-    // Atualiza lista de falantes
     setSpeakers(speakers.map((s) => (s === oldName ? newName : s)));
     setKnownSpeakers(knownSpeakers.map((s) => (s === oldName ? newName : s)));
 
-    // Atualiza falas na transcrição
     const updatedSegments = segments.map((seg) =>
       seg.speaker === oldName ? { ...seg, speaker: newName } : seg
     );
     setSegments(updatedSegments);
 
-    // Atualiza texto bruto
     const updatedRaw = updatedSegments.map((s) => `${s.speaker}: ${s.text}`).join('\n');
     setRawText(updatedRaw);
 
@@ -197,13 +211,12 @@ export const App: React.FC = () => {
         onOpenFolder={openFolder}
       />
 
-      {/* Barra de Controles e Seletor de Janela */}
+      {/* Barra de Controles Web */}
       <ControlBar
-        status={status}
-        windows={windows}
-        selectedWindow={selectedWindow}
-        onSelectWindow={setSelectedWindow}
-        onRefreshWindows={loadWindows}
+        isRecording={isRecording}
+        isPaused={isPaused}
+        duration={duration}
+        hasTabAudio={hasTabAudio}
         onStart={handleStart}
         onPause={handlePause}
         onResume={handleResume}
@@ -214,7 +227,7 @@ export const App: React.FC = () => {
       {/* Banner de Retentativa quando houver instabilidade no Gemini */}
       {canRetry && !isProcessing && (
         <div className="bg-amber-950/80 border-b border-amber-500/40 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-200">
-          <span>O áudio da reunião está seguro no PC. O Gemini passou por instabilidade temporária. Clique para processar agora:</span>
+          <span>O áudio da reunião está seguro no navegador. O Gemini passou por instabilidade temporária. Clique para processar agora:</span>
           <button
             onClick={handleRetry}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-semibold transition-colors cursor-pointer shadow-md shadow-amber-900/30"
@@ -250,12 +263,12 @@ export const App: React.FC = () => {
 
           {/* Card com Metadados da Pasta de Gravação */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
-            <span className="font-semibold text-slate-300">Destino dos Arquivos:</span>
+            <span className="font-semibold text-slate-300">Destino dos Arquivos no Disco:</span>
             <p className="font-mono text-[11px] bg-slate-950 p-2 rounded-lg border border-slate-800 break-all select-all text-slate-300">
               {status?.output_dir || 'Carregando...'}
             </p>
             <p className="text-[11px] text-slate-500">
-              Salvo automaticamente em formato Markdown com data e hora.
+              Salvo automaticamente em formato Markdown com data e título.
             </p>
           </div>
         </div>

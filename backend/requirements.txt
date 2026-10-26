@@ -7,3 +7,4 @@ pygetwindow>=0.0.9
 soundcard>=0.4.6
 soundfile>=0.13.0
 numpy>=2.0.0
+python-multipart>=0.0.20
